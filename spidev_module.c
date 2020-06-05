@@ -1,4 +1,4 @@
- /*
+/*
  * spidev_module.c - Python bindings for Linux SPI access through spidev
  *
  * MIT License
@@ -530,6 +530,7 @@ SpiDev_xfer(SpiDevObject *self, PyObject *args)
 				return NULL;
 			}
 		}
+		xferptr[ii].cs_change = 0;
 		xferptr[ii].len = 1;
 		xferptr[ii].delay_usecs = delay_usecs;
 		xferptr[ii].speed_hz = speed_hz ? speed_hz : self->max_speed_hz;
