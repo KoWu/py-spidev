@@ -1,4 +1,4 @@
-/*
+ /*
  * spidev_module.c - Python bindings for Linux SPI access through spidev
  *
  * MIT License
@@ -508,11 +508,18 @@ SpiDev_xfer(SpiDevObject *self, PyObject *args)
 #if PY_MAJOR_VERSION < 3
 		if (PyInt_Check(val)) {
 			txbuf[ii] = (__u8)PyInt_AS_LONG(val);
+			xferptr[ii].tx_buf = (unsigned long)&txbuf[ii];
+			xferptr[ii].rx_buf = 0;
 		} else
 #endif
 		{
 			if (PyLong_Check(val)) {
 				txbuf[ii] = (__u8)PyLong_AS_LONG(val);
+				xferptr[ii].tx_buf = (unsigned long)&txbuf[ii];
+				xferptr[ii].rx_buf = 0;
+			} else if (val == Py_None) {
+				xferptr[ii].tx_buf = 0;
+				xferptr[ii].rx_buf = (unsigned long)&rxbuf[ii];
 			} else {
 				snprintf(wrmsg_text, sizeof(wrmsg_text) - 1, wrmsg_val, val);
 				PyErr_SetString(PyExc_TypeError, wrmsg_text);
@@ -523,10 +530,8 @@ SpiDev_xfer(SpiDevObject *self, PyObject *args)
 				return NULL;
 			}
 		}
-		xferptr[ii].tx_buf = (unsigned long)&txbuf[ii];
-		xferptr[ii].rx_buf = (unsigned long)&rxbuf[ii];
 		xferptr[ii].len = 1;
-		xferptr[ii].delay_usecs = delay;
+		xferptr[ii].delay_usecs = delay_usecs;
 		xferptr[ii].speed_hz = speed_hz ? speed_hz : self->max_speed_hz;
 		xferptr[ii].bits_per_word = bits_per_word ? bits_per_word : self->bits_per_word;
 #ifdef SPI_IOC_WR_MODE32
@@ -597,9 +602,13 @@ SpiDev_xfer(SpiDevObject *self, PyObject *args)
 #endif
 
 	for (ii = 0; ii < len; ii++) {
-		PyObject *val = PyLong_FromLong((long)rxbuf[ii]);
-		PySequence_SetItem(seq, ii, val);
-		Py_DECREF(val); // PySequence_SetItem does not steal reference, must Py_DECREF(val)
+		if (PySequence_Fast_GET_ITEM(seq, ii) == Py_None) {
+			PyObject *val = PyLong_FromLong((long)rxbuf[ii]);
+			PySequence_SetItem(seq, ii, val);
+			Py_DECREF(val); // PySequence_SetItem does not steal reference, must Py_DECREF(val)
+		} else {
+			PySequence_SetItem(seq, ii, Py_None);
+		}
 	}
 
 	// WA:
