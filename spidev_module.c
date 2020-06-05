@@ -509,14 +509,14 @@ SpiDev_xfer(SpiDevObject *self, PyObject *args)
 		if (PyInt_Check(val)) {
 			txbuf[ii] = (__u8)PyInt_AS_LONG(val);
 			xferptr[ii].tx_buf = (unsigned long)&txbuf[ii];
-			xferptr[ii].rx_buf = 0;
+			xferptr[ii].rx_buf = self->mode & SPI_3WIRE ? 0 : (unsigned long)&rxbuf[ii];
 		} else
 #endif
 		{
 			if (PyLong_Check(val)) {
 				txbuf[ii] = (__u8)PyLong_AS_LONG(val);
 				xferptr[ii].tx_buf = (unsigned long)&txbuf[ii];
-				xferptr[ii].rx_buf = 0;
+				xferptr[ii].rx_buf = self->mode & SPI_3WIRE ? 0 : (unsigned long)&rxbuf[ii];
 			} else if (val == Py_None) {
 				xferptr[ii].tx_buf = 0;
 				xferptr[ii].rx_buf = (unsigned long)&rxbuf[ii];
@@ -601,13 +601,21 @@ SpiDev_xfer(SpiDevObject *self, PyObject *args)
 	}
 #endif
 
-	for (ii = 0; ii < len; ii++) {
-		if (PySequence_Fast_GET_ITEM(seq, ii) == Py_None) {
+	if (self->mode & SPI_3WIRE) {
+		for (ii = 0; ii < len; ii++) {
+			if (PySequence_Fast_GET_ITEM(seq, ii) == Py_None) {
+				PyObject *val = PyLong_FromLong((long)rxbuf[ii]);
+				PySequence_SetItem(seq, ii, val);
+				Py_DECREF(val); // PySequence_SetItem does not steal reference, must Py_DECREF(val)
+			} else {
+				PySequence_SetItem(seq, ii, Py_None);
+			}
+		}
+	} else {
+		for (ii = 0; ii < len; ii++) {
 			PyObject *val = PyLong_FromLong((long)rxbuf[ii]);
 			PySequence_SetItem(seq, ii, val);
 			Py_DECREF(val); // PySequence_SetItem does not steal reference, must Py_DECREF(val)
-		} else {
-			PySequence_SetItem(seq, ii, Py_None);
 		}
 	}
 
